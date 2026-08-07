@@ -1,0 +1,6 @@
+customtkinter
+pillow
+pygame
+tkinterdnd2
+pyinstaller
+plyer
