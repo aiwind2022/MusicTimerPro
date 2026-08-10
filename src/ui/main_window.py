@@ -154,6 +154,7 @@ class MainWindow(ctk.CTk):
             "timer": TimerPage(
                 self.content_frame,
                 self.config_manager,
+                self.logger,
             ),
 
             "playlist": PlaylistPage(
