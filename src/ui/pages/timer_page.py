@@ -1,12 +1,22 @@
 """Timer page for MusicTimer Pro."""
 
+from pathlib import Path
+from tkinter import filedialog
+
 import customtkinter as ctk
 
 
 class TimerPage(ctk.CTkFrame):
-    """Countdown timer interface."""
+    """Countdown timer and music control interface."""
 
-    def __init__(self, master, config_manager, logger=None, **kwargs):
+    def __init__(
+        self,
+        master,
+        config_manager,
+        logger=None,
+        audio_player=None,
+        **kwargs,
+    ):
         super().__init__(
             master,
             fg_color="transparent",
@@ -15,11 +25,11 @@ class TimerPage(ctk.CTkFrame):
 
         self.config_manager = config_manager
         self.logger = logger
+        self.audio_player = audio_player
 
         # Timer state
         self.timer_running = False
         self.timer_paused = False
-
         self.timer_after_id = None
 
         self.interval_seconds = (
@@ -34,12 +44,12 @@ class TimerPage(ctk.CTkFrame):
         self._create_widgets()
         self._update_display()
 
-    # --------------------------------------------------
+    # ==================================================
     # UI
-    # --------------------------------------------------
+    # ==================================================
 
     def _create_widgets(self):
-        """Create timer controls."""
+        """Create the timer interface."""
 
         title = ctk.CTkLabel(
             self,
@@ -59,20 +69,20 @@ class TimerPage(ctk.CTkFrame):
         description = ctk.CTkLabel(
             self,
             text=(
-                "Set an interval and start the countdown. "
-                "Music playback will be connected later."
+                "Set an interval and control "
+                "music playback."
             ),
             font=ctk.CTkFont(size=14),
         )
 
         description.pack(
             padx=30,
-            pady=(0, 25),
+            pady=(0, 20),
             anchor="w",
         )
 
         # --------------------------------------------------
-        # Interval
+        # Interval controls
         # --------------------------------------------------
 
         interval_frame = ctk.CTkFrame(
@@ -140,6 +150,56 @@ class TimerPage(ctk.CTkFrame):
         )
 
         # --------------------------------------------------
+        # Music selection
+        # --------------------------------------------------
+
+        music_frame = ctk.CTkFrame(
+            self,
+            fg_color="transparent",
+        )
+
+        music_frame.pack(
+            padx=30,
+            pady=10,
+            fill="x",
+        )
+
+        music_label = ctk.CTkLabel(
+            music_frame,
+            text="Music:",
+            font=ctk.CTkFont(size=16),
+        )
+
+        music_label.pack(
+            side="left",
+            padx=(0, 10),
+        )
+
+        self.music_file_label = ctk.CTkLabel(
+            music_frame,
+            text="No music selected",
+            anchor="w",
+        )
+
+        self.music_file_label.pack(
+            side="left",
+            padx=10,
+            fill="x",
+            expand=True,
+        )
+
+        self.browse_button = ctk.CTkButton(
+            music_frame,
+            text="Browse",
+            width=100,
+            command=self.select_music,
+        )
+
+        self.browse_button.pack(
+            side="right",
+        )
+
+        # --------------------------------------------------
         # Countdown display
         # --------------------------------------------------
 
@@ -153,11 +213,11 @@ class TimerPage(ctk.CTkFrame):
         )
 
         self.countdown_label.pack(
-            pady=(50, 20),
+            pady=(30, 10),
         )
 
         # --------------------------------------------------
-        # Status
+        # Timer status
         # --------------------------------------------------
 
         self.status_label = ctk.CTkLabel(
@@ -167,24 +227,24 @@ class TimerPage(ctk.CTkFrame):
         )
 
         self.status_label.pack(
-            pady=10,
+            pady=5,
         )
 
         # --------------------------------------------------
-        # Buttons
+        # Timer buttons
         # --------------------------------------------------
 
-        button_frame = ctk.CTkFrame(
+        timer_button_frame = ctk.CTkFrame(
             self,
             fg_color="transparent",
         )
 
-        button_frame.pack(
-            pady=20,
+        timer_button_frame.pack(
+            pady=10,
         )
 
         self.start_button = ctk.CTkButton(
-            button_frame,
+            timer_button_frame,
             text="▶ Start",
             width=110,
             height=40,
@@ -197,7 +257,7 @@ class TimerPage(ctk.CTkFrame):
         )
 
         self.pause_button = ctk.CTkButton(
-            button_frame,
+            timer_button_frame,
             text="Ⅱ Pause",
             width=110,
             height=40,
@@ -211,7 +271,7 @@ class TimerPage(ctk.CTkFrame):
         )
 
         self.stop_button = ctk.CTkButton(
-            button_frame,
+            timer_button_frame,
             text="■ Stop",
             width=110,
             height=40,
@@ -224,7 +284,7 @@ class TimerPage(ctk.CTkFrame):
         )
 
         self.reset_button = ctk.CTkButton(
-            button_frame,
+            timer_button_frame,
             text="↻ Reset",
             width=110,
             height=40,
@@ -236,12 +296,61 @@ class TimerPage(ctk.CTkFrame):
             padx=5,
         )
 
-    # --------------------------------------------------
+        # --------------------------------------------------
+        # Music buttons
+        # --------------------------------------------------
+
+        music_button_frame = ctk.CTkFrame(
+            self,
+            fg_color="transparent",
+        )
+
+        music_button_frame.pack(
+            pady=5,
+        )
+
+        self.play_music_button = ctk.CTkButton(
+            music_button_frame,
+            text="▶ Play",
+            width=110,
+            command=self.play_music,
+        )
+
+        self.play_music_button.pack(
+            side="left",
+            padx=5,
+        )
+
+        self.pause_music_button = ctk.CTkButton(
+            music_button_frame,
+            text="Ⅱ Pause",
+            width=110,
+            command=self.pause_music,
+        )
+
+        self.pause_music_button.pack(
+            side="left",
+            padx=5,
+        )
+
+        self.stop_music_button = ctk.CTkButton(
+            music_button_frame,
+            text="■ Stop",
+            width=110,
+            command=self.stop_music,
+        )
+
+        self.stop_music_button.pack(
+            side="left",
+            padx=5,
+        )
+
+    # ==================================================
     # Interval
-    # --------------------------------------------------
+    # ==================================================
 
     def apply_interval(self):
-        """Apply a new interval."""
+        """Apply a new timer interval."""
 
         try:
             minutes = int(
@@ -267,7 +376,6 @@ class TimerPage(ctk.CTkFrame):
             return
 
         self.interval_seconds = minutes * 60
-
         self.remaining_seconds = self.interval_seconds
 
         self.config_manager.set(
@@ -285,9 +393,9 @@ class TimerPage(ctk.CTkFrame):
             f"Interval changed to {minutes} minute(s)."
         )
 
-    # --------------------------------------------------
-    # Start
-    # --------------------------------------------------
+    # ==================================================
+    # Timer controls
+    # ==================================================
 
     def start_timer(self):
         """Start or resume the timer."""
@@ -296,7 +404,9 @@ class TimerPage(ctk.CTkFrame):
             return
 
         if self.remaining_seconds <= 0:
-            self.remaining_seconds = self.interval_seconds
+            self.remaining_seconds = (
+                self.interval_seconds
+            )
 
         self.timer_running = True
         self.timer_paused = False
@@ -316,10 +426,6 @@ class TimerPage(ctk.CTkFrame):
         self._log("Timer started.")
 
         self._schedule_tick()
-
-    # --------------------------------------------------
-    # Pause
-    # --------------------------------------------------
 
     def pause_timer(self):
         """Pause the timer."""
@@ -346,10 +452,6 @@ class TimerPage(ctk.CTkFrame):
 
         self._log("Timer paused.")
 
-    # --------------------------------------------------
-    # Stop
-    # --------------------------------------------------
-
     def stop_timer(self):
         """Stop the timer."""
 
@@ -358,7 +460,9 @@ class TimerPage(ctk.CTkFrame):
 
         self._cancel_scheduled_tick()
 
-        self.remaining_seconds = self.interval_seconds
+        self.remaining_seconds = (
+            self.interval_seconds
+        )
 
         self.start_button.configure(
             state="normal"
@@ -376,19 +480,17 @@ class TimerPage(ctk.CTkFrame):
 
         self._log("Timer stopped.")
 
-    # --------------------------------------------------
-    # Reset
-    # --------------------------------------------------
-
     def reset_timer(self):
-        """Reset the timer to the configured interval."""
+        """Reset the timer."""
 
         self.timer_running = False
         self.timer_paused = False
 
         self._cancel_scheduled_tick()
 
-        self.remaining_seconds = self.interval_seconds
+        self.remaining_seconds = (
+            self.interval_seconds
+        )
 
         self.start_button.configure(
             state="normal"
@@ -406,9 +508,9 @@ class TimerPage(ctk.CTkFrame):
 
         self._log("Timer reset.")
 
-    # --------------------------------------------------
+    # ==================================================
     # Countdown
-    # --------------------------------------------------
+    # ==================================================
 
     def _schedule_tick(self):
         """Schedule the next countdown update."""
@@ -422,7 +524,7 @@ class TimerPage(ctk.CTkFrame):
             )
 
     def _timer_tick(self):
-        """Process one second of countdown."""
+        """Process one second of the countdown."""
 
         if not self.timer_running:
             return
@@ -442,46 +544,159 @@ class TimerPage(ctk.CTkFrame):
     def _timer_finished(self):
         """Handle timer reaching zero."""
 
-        self._log("Timer interval completed.")
+        self._log(
+            "Timer interval completed."
+        )
 
         self.status_label.configure(
             text="Interval completed."
         )
 
-        # Reset the countdown for the next interval.
-        self.remaining_seconds = self.interval_seconds
+        # Trigger music playback.
+        if self.audio_player is not None:
+
+            if self.audio_player.current_file is not None:
+
+                self.audio_player.play()
+
+                self._log(
+                    "Timer triggered music playback."
+                )
+
+        # Reset countdown for next interval.
+        self.remaining_seconds = (
+            self.interval_seconds
+        )
 
         self._update_display()
 
-        # Keep the timer running so that future
-        # music playback can be triggered here.
+        # Continue timer.
         self._schedule_tick()
 
-    # --------------------------------------------------
+    # ==================================================
     # Display
-    # --------------------------------------------------
+    # ==================================================
 
     def _update_display(self):
         """Update countdown display."""
 
         minutes = self.remaining_seconds // 60
-
         seconds = self.remaining_seconds % 60
 
-        display_text = (
-            f"{minutes:02d}:{seconds:02d}"
-        )
-
         self.countdown_label.configure(
-            text=display_text
+            text=f"{minutes:02d}:{seconds:02d}"
         )
 
-    # --------------------------------------------------
+    # ==================================================
+    # Music controls
+    # ==================================================
+
+    def select_music(self):
+        """Select an audio file."""
+
+        file_path = filedialog.askopenfilename(
+            title="Select Music",
+            filetypes=[
+                (
+                    "Audio Files",
+                    "*.mp3 *.wav *.ogg *.flac",
+                ),
+                (
+                    "MP3 Files",
+                    "*.mp3",
+                ),
+                (
+                    "WAV Files",
+                    "*.wav",
+                ),
+                (
+                    "All Files",
+                    "*.*",
+                ),
+            ],
+        )
+
+        if not file_path:
+            return
+
+        if self.audio_player is None:
+
+            self.status_label.configure(
+                text="Audio player unavailable."
+            )
+
+            return
+
+        success = self.audio_player.load(
+            file_path
+        )
+
+        if success:
+
+            filename = Path(
+                file_path
+            ).name
+
+            self.music_file_label.configure(
+                text=filename
+            )
+
+            self.status_label.configure(
+                text=f"Loaded: {filename}"
+            )
+
+            self._log(
+                f"Selected music: {file_path}"
+            )
+
+        else:
+
+            self.status_label.configure(
+                text="Unable to load music."
+            )
+
+    def play_music(self):
+        """Play selected music."""
+
+        if self.audio_player is None:
+            return
+
+        if self.audio_player.play():
+
+            self.status_label.configure(
+                text="Playing music"
+            )
+
+    def pause_music(self):
+        """Pause music."""
+
+        if self.audio_player is None:
+            return
+
+        self.audio_player.pause()
+
+        self.status_label.configure(
+            text="Music paused"
+        )
+
+    def stop_music(self):
+        """Stop music."""
+
+        if self.audio_player is None:
+            return
+
+        self.audio_player.stop()
+
+        self.status_label.configure(
+            text="Music stopped"
+        )
+
+    # ==================================================
     # Timer cleanup
-    # --------------------------------------------------
+    # ==================================================
 
     def _cancel_scheduled_tick(self):
-        """Cancel scheduled timer callback."""
+        """Cancel the scheduled timer callback."""
 
         if self.timer_after_id is not None:
 
@@ -495,22 +710,22 @@ class TimerPage(ctk.CTkFrame):
 
             self.timer_after_id = None
 
-    # --------------------------------------------------
+    # ==================================================
     # Logging
-    # --------------------------------------------------
+    # ==================================================
 
-    def _log(self, message: str):
-        """Write message to application logger."""
+    def _log(self, message):
+        """Write a message to the application logger."""
 
         if self.logger is not None:
             self.logger.info(message)
 
-    # --------------------------------------------------
+    # ==================================================
     # Cleanup
-    # --------------------------------------------------
+    # ==================================================
 
     def destroy(self):
-        """Clean up timer before destroying widget."""
+        """Clean up timer resources."""
 
         self._cancel_scheduled_tick()
 

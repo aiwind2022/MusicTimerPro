@@ -3,6 +3,7 @@
 import customtkinter as ctk
 
 from .sidebar import Sidebar
+from ..core.audio_player import AudioPlayer
 
 from .pages.home_page import HomePage
 from .pages.timer_page import TimerPage
@@ -26,6 +27,10 @@ class MainWindow(ctk.CTk):
 
         self.config_manager = config_manager
         self.logger = logger
+
+        self.audio_player = AudioPlayer(
+             logger=self.logger
+        )
 
         self.title(APP_NAME)
 
@@ -155,6 +160,7 @@ class MainWindow(ctk.CTk):
                 self.content_frame,
                 self.config_manager,
                 self.logger,
+                self.audio_player,
             ),
 
             "playlist": PlaylistPage(
@@ -223,11 +229,13 @@ class MainWindow(ctk.CTk):
         """Save settings and close the application."""
 
         self.config_manager.update(
-            {
-                "window_width": self.winfo_width(),
-                "window_height": self.winfo_height(),
-            }
+        {
+            "window_width": self.winfo_width(),
+            "window_height": self.winfo_height(),
+        }
         )
+
+        self.audio_player.shutdown()
 
         self.logger.info(
             "Application closing."
