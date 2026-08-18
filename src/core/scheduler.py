@@ -2,23 +2,25 @@
 
 from datetime import datetime
 
+from .event_resolver import EventResolver
 from .schedule_manager import ScheduleManager
 
 
 class Scheduler:
     """
-    Coordinate multiple independent music schedules.
+    Coordinate multiple independent schedules.
 
-    The Scheduler is responsible for deciding WHAT event
-    should happen and WHEN it should happen.
+    The Scheduler determines when schedules are due.
+    EventResolver determines which event should be played
+    when multiple schedules occur at the same time.
 
-    It does not play music directly. Audio playback remains
-    the responsibility of AudioPlayer.
+    The Scheduler does not play media directly.
     """
 
     def __init__(
         self,
         schedule_manager=None,
+        event_resolver=None,
         logger=None,
     ):
         self.schedule_manager = (
@@ -27,14 +29,18 @@ class Scheduler:
             else ScheduleManager(logger=logger)
         )
 
+        self.event_resolver = (
+            event_resolver
+            if event_resolver is not None
+            else EventResolver(logger=logger)
+        )
+
         self.logger = logger
 
         self.running = False
         self.started_at = None
 
-        # Higher number = higher priority.
         self.default_priority = 50
-
         self._priorities = {}
 
     # ==================================================
@@ -46,13 +52,7 @@ class Scheduler:
         schedule,
         priority=None,
     ):
-        """
-        Add a schedule to the scheduler.
-
-        Args:
-            schedule: Schedule object.
-            priority: Optional integer priority.
-        """
+        """Add a schedule to the scheduler."""
 
         self.schedule_manager.add_schedule(
             schedule
@@ -66,8 +66,7 @@ class Scheduler:
         ] = priority
 
         self._log(
-            f"Scheduler added: "
-            f"{schedule.name} "
+            f"Scheduler added: {schedule.name} "
             f"(priority={priority})"
         )
 
@@ -111,11 +110,6 @@ class Scheduler:
             schedule_name
         ] = priority
 
-        self._log(
-            f"Priority changed: "
-            f"{schedule_name} = {priority}"
-        )
-
         return True
 
     def get_priority(
@@ -130,7 +124,7 @@ class Scheduler:
         )
 
     # ==================================================
-    # Scheduler lifecycle
+    # Lifecycle
     # ==================================================
 
     def start(self, start_time=None):
@@ -147,8 +141,7 @@ class Scheduler:
         self.started_at = start_time
 
         self._log(
-            f"Scheduler started at "
-            f"{start_time}"
+            f"Scheduler started at {start_time}"
         )
 
     def stop(self):
@@ -161,15 +154,17 @@ class Scheduler:
         )
 
     # ==================================================
-    # Event processing
+    # Due events
     # ==================================================
 
-    def check(self, current_time=None):
+    def get_due_events(
+        self,
+        current_time=None,
+    ):
         """
-        Check for due schedules.
+        Return all schedules currently due.
 
-        Returns:
-            A list of schedule events ordered by priority.
+        This method does not resolve competing events.
         """
 
         if not self.running:
@@ -185,31 +180,17 @@ class Scheduler:
             )
         )
 
-        if not due_schedules:
-            return []
-
-        # Sort highest priority first.
-        due_schedules.sort(
-            key=lambda schedule:
-                self.get_priority(
-                    schedule.name
-                ),
-            reverse=True,
-        )
-
         events = []
 
         for schedule in due_schedules:
-
-            priority = self.get_priority(
-                schedule.name
-            )
 
             events.append(
                 {
                     "schedule": schedule,
                     "name": schedule.name,
-                    "priority": priority,
+                    "priority": self.get_priority(
+                        schedule.name
+                    ),
                     "playlist": schedule.playlist,
                     "trigger_time": current_time,
                 }
@@ -217,47 +198,94 @@ class Scheduler:
 
         return events
 
-    def process(self, current_time=None):
+    # ==================================================
+    # Event resolution
+    # ==================================================
+
+    def resolve_events(
+        self,
+        current_time=None,
+    ):
         """
-        Check and process all due schedules.
+        Find due events and select the highest-priority event.
 
-        The returned events represent actions that should
-        be handled by the application/audio system.
+        Returns:
+            ResolvedEvent or None.
         """
 
-        if current_time is None:
-            current_time = datetime.now()
-
-        events = self.check(
+        events = self.get_due_events(
             current_time
         )
 
         if not events:
-            return []
+            return None
 
-        processed = []
+        resolved = (
+            self.event_resolver.resolve(
+                events
+            )
+        )
 
+        return resolved
+
+    # ==================================================
+    # Process events
+    # ==================================================
+
+    def process(
+        self,
+        current_time=None,
+    ):
+        """
+        Process all schedules due at current_time.
+
+        The highest-priority event is selected for playback.
+
+        All due schedules are advanced so that suppressed
+        lower-priority events do not become stuck.
+        """
+
+        if not self.running:
+            return None
+
+        if current_time is None:
+            current_time = datetime.now()
+
+        events = self.get_due_events(
+            current_time
+        )
+
+        if not events:
+            return None
+
+        resolved = (
+            self.event_resolver.resolve(
+                events
+            )
+        )
+
+        # Advance EVERY due schedule.
+        #
+        # This is important for Option C:
+        # a suppressed short reminder should still
+        # continue its normal 15-minute schedule.
         for event in events:
 
             schedule = event[
                 "schedule"
             ]
 
-            self._log(
-                f"Processing schedule: "
-                f"{schedule.name}"
-            )
-
             self.schedule_manager.trigger_schedule(
                 schedule,
                 current_time,
             )
 
-            processed.append(
-                event
-            )
+        self._log(
+            f"Selected event: "
+            f"{resolved.name}"
+        )
 
-        return processed
+        return resolved
 
     # ==================================================
     # Next event
@@ -267,13 +295,7 @@ class Scheduler:
         self,
         current_time=None,
     ):
-        """
-        Return the next scheduled event.
-
-        Returns:
-            Dictionary containing schedule information,
-            or None if no event exists.
-        """
+        """Return the next scheduled event."""
 
         if current_time is None:
             current_time = datetime.now()
@@ -306,7 +328,7 @@ class Scheduler:
         self,
         current_time=None,
     ):
-        """Return scheduler status information."""
+        """Return scheduler status."""
 
         if current_time is None:
             current_time = datetime.now()
@@ -316,12 +338,6 @@ class Scheduler:
         for schedule in (
             self.schedule_manager.schedules
         ):
-
-            remaining = (
-                schedule.time_until_next(
-                    current_time
-                )
-            )
 
             schedules.append(
                 {
@@ -336,7 +352,11 @@ class Scheduler:
                     "next_trigger": (
                         schedule.next_trigger
                     ),
-                    "time_remaining": remaining,
+                    "time_remaining": (
+                        schedule.time_until_next(
+                            current_time
+                        )
+                    ),
                 }
             )
 
