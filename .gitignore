@@ -24,3 +24,8 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test media
+test_media/*.mp3
+test_media/*.wav
+test_media/*.m4a
