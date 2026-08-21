@@ -4,7 +4,9 @@ from pathlib import Path
 from tkinter import filedialog
 
 import customtkinter as ctk
-
+from src.core.playback_controller import PlaybackController
+from src.core.playlist_manager import PlaylistManager
+from src.ui.widgets.playback_panel import PlaybackPanel
 
 class TimerPage(ctk.CTkFrame):
     """Countdown timer and music control interface."""
@@ -15,6 +17,8 @@ class TimerPage(ctk.CTkFrame):
         config_manager,
         logger=None,
         audio_player=None,
+        playlist_manager=None,
+        playback_controller=None,
         **kwargs,
     ):
         super().__init__(
@@ -27,6 +31,15 @@ class TimerPage(ctk.CTkFrame):
         self.logger = logger
         self.audio_player = audio_player
 
+        # Playlist / playback system
+        self.playlist_manager = (
+            playlist_manager
+        )
+
+        self.playback_controller = (
+        playback_controller
+         )
+
         # Timer state
         self.timer_running = False
         self.timer_paused = False
@@ -34,12 +47,14 @@ class TimerPage(ctk.CTkFrame):
 
         self.interval_seconds = (
             self.config_manager.get(
-                "interval_minutes",
-                15,
-            ) * 60
-        )
+            "interval_minutes",
+            15,
+        ) * 60
+    )
 
-        self.remaining_seconds = self.interval_seconds
+        self.remaining_seconds = (
+            self.interval_seconds
+        )
 
         self._create_widgets()
         self._update_display()
@@ -345,6 +360,25 @@ class TimerPage(ctk.CTkFrame):
             padx=5,
         )
 
+        # ==================================================
+        # Playback Panel
+        # ==================================================
+
+        self.playback_panel = PlaybackPanel(
+            self,
+            playback_controller=(
+            self.playback_controller
+            ),
+        )
+
+        self.playback_panel.pack(
+            padx=20,
+            pady=(10, 20),
+            fill="x",
+        )
+
+        self._set_test_playback_event()
+        
     # ==================================================
     # Interval
     # ==================================================
@@ -656,15 +690,48 @@ class TimerPage(ctk.CTkFrame):
             )
 
     def play_music(self):
-        """Play selected music."""
+        """Play the currently selected test event."""
 
-        if self.audio_player is None:
+        if self.playback_controller is None:
+            self._log(
+                "Playback controller is not available."
+            )
             return
 
-        if self.audio_player.play():
+        try:
+            class ManualEvent:
+                name = "Short Reminder"
+                playlist = "upbeat"
+                priority = 50
 
-            self.status_label.configure(
-                text="Playing music"
+            media = (
+                self.playback_controller.play_event(
+                    ManualEvent()
+                )
+            )
+
+            if media is not None:
+                self._log(
+                    f"Playing: {media.title}"
+                )
+
+                if hasattr(
+                    self,
+                    "playback_panel",
+                ):
+                    self.playback_panel.set_status(
+                        f"Playing: {media.title}"
+                    )
+
+            else:
+                self._log(
+                    "No playable media found "
+                    "in the upbeat playlist."
+                )
+
+        except Exception as error:
+            self._log(
+                f"Playback error: {error}"
             )
 
     def pause_music(self):
@@ -730,3 +797,19 @@ class TimerPage(ctk.CTkFrame):
         self._cancel_scheduled_tick()
 
         super().destroy()
+
+    # ==================================================
+    # test event
+    # ==================================================
+    def _set_test_playback_event(self):
+
+        """Set a temporary playback event for testing."""
+
+        class TestEvent:
+            name = "Short Reminder"
+            playlist = "upbeat"
+            priority = 50
+
+        self.playback_panel.set_event(
+            TestEvent()
+        )

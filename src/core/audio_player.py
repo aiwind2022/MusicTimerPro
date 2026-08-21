@@ -1,6 +1,7 @@
 """Audio playback engine for MusicTimer Pro."""
 
 from pathlib import Path
+from src.core.media import Media
 
 import pygame
 
@@ -82,11 +83,43 @@ class AudioPlayer:
             )
             return False
 
-    def play(self):
-        """Start playing the currently loaded audio."""
-
+    def play(self, media=None):
+        """
+        Start playing audio.
+        Args:
+        media: Optional Media object.
+        Returns:
+        True if playback started successfully.
+        """
         if not self.initialized:
             return False
+
+        # --------------------------------------------------
+        # If a Media object was supplied, load it first.
+        # --------------------------------------------------
+
+        if media is not None:
+
+            if not isinstance(media, Media):
+                self._log(
+                    "Invalid media object."
+                )
+                return False
+
+            if media.media_type != "audio":
+                self._log(
+                    f"Cannot play non-audio media: "
+                    f"{media.media_type}"
+                )
+                return False
+
+            if not self.load(media.path):
+                return False
+
+        # --------------------------------------------------
+        # Existing behavior:
+        # play whatever is already loaded.
+        # --------------------------------------------------
 
         if self.current_file is None:
             self._log(
@@ -95,6 +128,7 @@ class AudioPlayer:
             return False
 
         try:
+
             pygame.mixer.music.play()
 
             pygame.mixer.music.set_volume(
@@ -102,17 +136,20 @@ class AudioPlayer:
             )
 
             self._log(
-                f"Playing: {self.current_file.name}"
+                f"Playing: "
+                f"{self.current_file.name}"
             )
 
             return True
 
         except pygame.error as error:
+
             self._log(
                 f"Playback error: {error}"
             )
-            return False
 
+            return False
+    
     def pause(self):
         """Pause playback."""
 

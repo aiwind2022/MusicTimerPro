@@ -2,8 +2,14 @@
 
 import customtkinter as ctk
 
+from pathlib import Path
+
 from .sidebar import Sidebar
-from ..core.audio_player import AudioPlayer
+from ..media.audio_player import AudioPlayer
+
+from ..core.media import Media
+from ..core.playlist_manager import PlaylistManager
+from ..core.playback_controller import PlaybackController
 
 from .pages.home_page import HomePage
 from .pages.timer_page import TimerPage
@@ -28,10 +34,50 @@ class MainWindow(ctk.CTk):
         self.config_manager = config_manager
         self.logger = logger
 
-        self.audio_player = AudioPlayer(
-             logger=self.logger
+        self.audio_player = AudioPlayer()
+
+        self.playlist_manager = PlaylistManager()
+
+        self.playback_controller = PlaybackController(
+            playlist_manager=self.playlist_manager,
+            media_player=self.audio_player,
+            logger=self.logger,
         )
 
+        # Temporary Sprint 1.6F test playlist
+        test_playlist = self.playlist_manager.create(
+            "upbeat",
+            "Short upbeat reminder music.",
+        )
+
+        test_media_path = (
+            Path(__file__).resolve().parents[2]
+            / "test_media"
+            / "upbeat.mp3"
+        )
+
+        if test_media_path.exists():
+            test_media = Media(
+            path=test_media_path,
+            title="Upbeat Test Music",
+            )
+
+            test_playlist.add(test_media)
+
+            self.logger.info(
+                f"Test media added: {test_media_path}"
+            )
+        else:
+            self.logger.warning(
+            f"Test media not found: {test_media_path}"
+        )
+        # Temporary Sprint 1.6F test playlist
+        #if self.playlist_manager.get("upbeat") is None:
+        #   self.playlist_manager.create(
+        #  "upbeat",
+        # "Short upbeat reminder music.",
+        #)
+            
         self.title(APP_NAME)
 
         width = self.config_manager.get(
@@ -157,11 +203,13 @@ class MainWindow(ctk.CTk):
             ),
 
             "timer": TimerPage(
-                self.content_frame,
-                self.config_manager,
-                self.logger,
-                self.audio_player,
-            ),
+                 self.content_frame,
+                 config_manager=self.config_manager,
+                 logger=self.logger,
+                 audio_player=self.audio_player,
+                 playlist_manager=self.playlist_manager,
+                 playback_controller=self.playback_controller,                
+             ),
 
             "playlist": PlaylistPage(
                 self.content_frame
